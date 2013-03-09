@@ -135,7 +135,7 @@ exceeds maxsize
 	    local http = require "resty.http.simple"
 	    local res, err = http.request("127.0.0.1", 1984, { path = "/foo", maxsize = 1024, version = 0 })
 	    ngx.say(err)
-	    ngx.say(string.len(res.body)
+	    ngx.say(string.len(res.body))
         ';
     }
 --- request
