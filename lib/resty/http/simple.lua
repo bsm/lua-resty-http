@@ -74,9 +74,7 @@ end
 -- LOCAL HELPERS                    --
 --------------------------------------
 
-local function _req_header(conf, opts)
-    opts = opts or {}
-
+local function _req_header(self, opts)
     -- Initialize request
     local req = {
 	upper(opts.method or "GET"),
@@ -84,7 +82,7 @@ local function _req_header(conf, opts)
     }
 
     -- Append path
-    local path = opts.path or conf.path
+    local path = opts.path
     if type(path) ~= "string" then
 	path = "/"
     elseif sub(path, 1, 1) ~= "/" then
@@ -116,7 +114,7 @@ local function _req_header(conf, opts)
 	headers['Content-Length'] = #opts.body
     end
     if not headers['Host'] then
-	headers['Host'] = conf.host
+	headers['Host'] = self.host
     end
     if not headers['User-Agent'] then
 	headers['User-Agent'] = USER_AGENT
@@ -196,25 +194,30 @@ end
 local function _receive_chunked(sock)
     local chunks = {}
 
+    local done = false
     repeat
-	local str, err = sock:receive()
+	local str, err = sock:receive("*l")
 	if not str then
 	    return nil, err
 	end
 
 	local length = tonumber(str, 16)
-	if not length or length < 1 then
-	    break
+	
+	if not length then
+	    return nil, "unable to read chunksize"
 	end
-
-	local str, err = sock:receive(length + 2)
-	if not str then
-	    return nil, err
+	if length > 0 then
+	    local str, err = sock:receive(length)
+	    if not str then
+		return nil, err
+	    end
+	    insert(chunks, str)
+	else
+	    done = true
 	end
-
-	insert(chunks, str)
-    until false
-    sock:receive(2)
+	-- read the \r\n
+	sock:receive(2)
+    until done
 
     return concat(chunks), nil
 end
@@ -249,7 +252,7 @@ local function _receive(self, sock)
 	end
 	body = str
     else
-	local str, err = sock:receive()
+	local str, err = sock:receive("*a")
 	headers["Connection"] = "close"
 	if not str then
 	    return nil, err
@@ -258,9 +261,9 @@ local function _receive(self, sock)
     end
 
     if lower(headers["Connection"]) == "close" then
-	self:close()
+	sock:close()
     else
-	self:set_keepalive()
+	sock:setkeepalive()
     end
 
     return { status = status, headers = headers, body = body }
@@ -271,93 +274,29 @@ end
 -- PUBLIC API                       --
 --------------------------------------
 
-function new(self)
+function request(host, port, opts)
+    opts = opts or {}
     local sock, err = tcp()
     if not sock then
 	return nil, err
     end
-
-    return setmetatable({ sock = sock }, { __index = _M })
-end
-
-
-function connect(self, host, port, conf)
-    local sock = self.sock
-    if not sock then
-	return nil, "not initialized"
+    
+    local rc, err = sock:connect(host, port)
+    if not rc then
+	return nil, err
     end
-
-    conf = conf or {}
-    conf.host = host
-    conf.port = tonumber(port) or 80
-
-    if not conf.scheme then
-	if conf.port == 443 then
-	    conf.scheme = "https"
-	else
-	    conf.scheme = "http"
-	end
-    end
-    self.conf = conf
-
-    return sock:connect(conf.host, conf.port)
-end
-
-
-function get_reused_times(self)
-    local sock = self.sock
-    if not sock then
-	return nil, "not initialized"
-    end
-
-    return sock:getreusedtimes()
-end
-
-
-function set_timeout(self, timeout)
-    local sock = self.sock
-    if not sock then
-	return nil, "not initialized"
-    end
-
-    return sock:settimeout(timeout)
-end
-
-
-function set_keepalive(self, ...)
-    local sock = self.sock
-    if not sock then
-	return nil, "not initialized"
-    end
-
-    return sock:setkeepalive(...)
-end
-
-
-function close(self)
-    local sock = self.sock
-    if not sock then
-	return nil, "not initialized"
-    end
-    self.conf = nil
-
-    return sock:close()
-end
-
-
-function request(self, opts)
-    local sock = self.sock
-    if not sock then
-	return nil, "not initialized"
-    end
-
-    local conf = self.conf
-    if not conf then
-	return nil, "not connected"
-    end
+    
+    sock:settimeout(opts.timeout or 5000)
+    
+    local self = {
+	host = host,
+	port = port,
+	sock = sock,
+	opts = opts
+    }
 
     -- Build and send request header
-    local header = _req_header(conf, opts)
+    local header = _req_header(self, opts)
     local bytes, err = sock:send(header)
     if not bytes then
 	return nil, err
