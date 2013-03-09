@@ -17,8 +17,6 @@ local ipairs = ipairs
 local rawset = rawset
 local rawget = rawget
 
-local ngx = ngx
-
 module(...)
 
 _VERSION = "0.1.0"
