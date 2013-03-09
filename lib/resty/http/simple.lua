@@ -224,10 +224,15 @@ local function _receive(self, sock)
 	return nil, err
     end
 
+    local maxsize = self.opts.maxsize
+       
     local length = tonumber(headers["Content-Length"])
     local body
 
     if length then
+	if maxsize and length > maxsize then
+	    return nil, 'exceeds maxsize'
+	end
 	local str, err = _receive_length(sock, length)
 	if not str then
 	    return nil, err
