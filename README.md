@@ -52,7 +52,15 @@ An optional Lua `options` table can be specified to declare various options:
 * `headers`
 : Specifies request headers. Accepts a Lua table. 
 * `timeout`
-: Sets the timeout in milliseconds for network operations.
+: Sets the timeout in milliseconds for network operations. Defaults to `5000`.
+* `version`
+: Sets the HTTP version. Use `0` for HTTP/1.0 and `1` for
+HTTP/1.1. Defaults to `1`.
+* `maxsize`
+: Sets the maximum size in bytes to fetch. A response body larger than
+this will cause the fucntion to return a `exceeds maxsize`
+error. Defaults to `nil` which means no limit.
+
 
 Returns a `res` object containing three attributes:
 
