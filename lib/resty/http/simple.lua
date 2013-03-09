@@ -51,7 +51,12 @@ for _,key in ipairs(common_headers) do
 end
 
 function normalize_header(key)
-    local val = common_headers[key] or common_headers[lower(key)]
+    local val = common_headers[key]
+    if val then
+	return val
+    end
+    key = lower(key)
+    val = common_headers[lower(key)]
     if val then
 	return val
     end
