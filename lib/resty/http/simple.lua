@@ -227,7 +227,7 @@ local function _receive_all(sock, maxsize)
 	    if err ~= "closed" then
 		return nil, err
 	    else
-		-- this seems odd but is correct, bcs aof how ngx_lua
+		-- this seems odd but is correct, bcs of how ngx_lua
 		-- handled the rror case, which is actually a success
 		-- in this scenerio
 		chunk = partial
