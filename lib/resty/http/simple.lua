@@ -164,26 +164,12 @@ end
 local function _receive_length(sock, length)
     local chunks = {}
 
-    while length > CHUNK_SIZE do
-	local chunk, err = sock:receive(CHUNK_SIZE)
-	if not chunk then
-	    return nil, err
-	end
-
-	insert(chunks, chunk)
-	length = length - CHUNK_SIZE
+    local chunk, err = sock:receive(length)
+    if not chunk then
+	return nil, err
     end
-
-    if length > 0 then
-	local chunk, err = sock:receive(length)
-	if not chunk then
-	    return nil, err
-	end
-
-	insert(chunks, chunk)
-    end
-
-    return concat(chunks), nil
+    
+    return chunk, nil
 end
 
 
