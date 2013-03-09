@@ -53,7 +53,7 @@ foobar
 [error]
 
 
-=== TEST 1: basic without content length
+=== TEST 2: basic without content length
 --- http_config eval: $::HttpConfig
 --- config
     resolver $TEST_NGINX_RESOLVER;
@@ -81,5 +81,37 @@ foobar
 
 200
 nil
+--- no_error_log
+[error]
+
+
+
+=== TEST 3: basic without content length and HTTP/1.0
+--- http_config eval: $::HttpConfig
+--- config
+    lua_http10_buffering off;
+    resolver $TEST_NGINX_RESOLVER;
+    location /foo {
+        content_by_lua '
+            ngx.say("foobar")
+        ';
+    }
+
+    location /t {
+        content_by_lua '
+	    local http = require "resty.http.simple"
+	    local res, err = http.request("127.0.0.1", 1984, { path = "/foo", version = 0 })
+	    ngx.say(res.body)  
+            ngx.say(res.status)
+	    ngx.say(string.len(res.body))         
+        ';
+    }
+--- request
+GET /t
+--- response_body
+foobar
+
+200
+7
 --- no_error_log
 [error]
