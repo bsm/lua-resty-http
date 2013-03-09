@@ -28,7 +28,7 @@ _VERSION = "0.1.0"
 --------------------------------------
 local HTTP_1_1   = " HTTP/1.1\r\n"
 local CHUNK_SIZE = 1048576
-local USER_AGENT = "Resty/HTTP " .. _VERSION .. " (Lua)"
+local USER_AGENT = "Resty/HTTP-Simple " .. _VERSION .. " (Lua)"
 
 -- canonical names for common headers
 local common_headers = {
