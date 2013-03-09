@@ -16,6 +16,8 @@ local gsub = string.gsub
 local ipairs = ipairs
 local rawset = rawset
 local rawget = rawget
+local min = math.min
+local ngx = ngx
 
 module(...)
 
@@ -25,6 +27,8 @@ _VERSION = "0.1.0"
 -- LOCAL CONSTANTS                  --
 --------------------------------------
 local HTTP_1_1   = " HTTP/1.1\r\n"
+local HTTP_1_0   = " HTTP/1.0\r\n"
+
 local CHUNK_SIZE = 1048576
 local USER_AGENT = "Resty/HTTP-Simple " .. _VERSION .. " (Lua)"
 
@@ -89,7 +93,11 @@ local function _req_header(self, opts)
     end
 
     -- Close first line
-    insert(req, HTTP_1_1)
+    if opts.version == 1 then
+	insert(req, HTTP_1_1)
+    else
+	insert(req, HTTP_1_0)
+    end
 
     -- Normalize headers
     opts.headers = opts.headers or {}
@@ -179,9 +187,10 @@ local function _receive_length(sock, length)
 end
 
 
-local function _receive_chunked(sock)
+local function _receive_chunked(sock, maxsize)
     local chunks = {}
 
+    local size = 0
     local done = false
     repeat
 	local str, err = sock:receive("*l")
@@ -194,6 +203,12 @@ local function _receive_chunked(sock)
 	if not length then
 	    return nil, "unable to read chunksize"
 	end
+
+	size = size + length
+	if maxsize and size > maxsize then
+	    return nil, 'exceeds maxsize'
+	end
+	
 	if length > 0 then
 	    local str, err = sock:receive(length)
 	    if not str then
@@ -210,6 +225,36 @@ local function _receive_chunked(sock)
     return concat(chunks), nil
 end
 
+local function _receive_all(sock, maxsize)
+    -- we read maxsize +1 for the corner case where the upstream wants to write
+    -- exactly maxsize bytes
+    local arg = maxsize and (maxsize + 1) or "*a"
+    local chunk, err, partial = sock:receive(arg)
+    if maxsize then
+	-- if we didn't get an error, it means that the upstream still had data to write
+	-- which means it exceeded maxsize
+	if not err then
+	      return nil, 'exceeds maxsize'
+	else
+	    -- you read to closed in this situation so, if upstream did not close
+	    -- then its an error
+	    if err ~= "closed" then
+		return nil, err
+	    else
+		-- this seems odd but is correct, bcs aof how ngx_lua
+		-- handled the rror case, which is actually a success
+		-- in this scenerio
+		chunk = partial
+	    end
+	end
+    end
+
+    -- in the case of reading all til closed, closed is not a "valid" error
+    if not chunk then
+	return nil, err
+    end
+    return chunk, nil
+end
 
 local function _receive(self, sock)
     local line, err = sock:receive()
@@ -231,6 +276,7 @@ local function _receive(self, sock)
 
     if length then
 	if maxsize and length > maxsize then
+	    sock:close()
 	    return nil, 'exceeds maxsize'
 	end
 	local str, err = _receive_length(sock, length)
@@ -238,19 +284,23 @@ local function _receive(self, sock)
 	    return nil, err
 	end
 	body = str
-    elseif lower(headers["Transfer-Encoding"]) == "chunked" then
-	local str, err = _receive_chunked(sock)
-	if not str then
-	    return nil, err
-	end
-	body = str
     else
-	local str, err = sock:receive("*a")
-	headers["Connection"] = "close"
-	if not str then
-	    return nil, err
+	local encoding = headers["Transfer-Encoding"]
+	if encoding and lower(encoding) == "chunked" then
+	    local str, err = _receive_chunked(sock, maxsize)
+	    if not str then
+		sock:close()
+		return nil, err
+	    end
+	    body = str
+	else
+	    local str, err = _receive_all(sock, maxsize)
+	    headers["Connection"] = "close"
+	    if not str then
+		return nil, err
+	    end
+	    body = str
 	end
-	body = str
     end
 
     if lower(headers["Connection"]) == "close" then
@@ -280,6 +330,15 @@ function request(host, port, opts)
     end
     
     sock:settimeout(opts.timeout or 5000)
+    
+    local version = opts.version
+    if version then
+	if version ~= 0 and version ~= 1 then
+	    return nil, "unknown HTTP version"
+	end
+    else
+	opts.version = 1
+    end
     
     local self = {
 	host = host,
