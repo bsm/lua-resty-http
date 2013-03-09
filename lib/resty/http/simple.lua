@@ -266,38 +266,28 @@ local function _receive(self, sock)
        
     local length = tonumber(headers["Content-Length"])
     local body
-
+    local err
+    
     local keepalive = true
        
     if length then
 	if maxsize and length > maxsize then
-	    sock:close()
-	    return nil, 'exceeds maxsize'
+	    body, err =  nil, 'exceeds maxsize'
+	else
+	    body, err = _receive_length(sock, length)
 	end
-	local str, err = _receive_length(sock, length)
-	if not str then
-	    sock:close()
-	    return nil, err
-	end
-	body = str
     else
 	local encoding = headers["Transfer-Encoding"]
 	if encoding and lower(encoding) == "chunked" then
-	    local str, err = _receive_chunked(sock, maxsize)
-	    if not str then
-		sock:close()
-		return nil, err
-	    end
-	    body = str
+	    body, err = _receive_chunked(sock, maxsize)
 	else
-	    local str, err = _receive_all(sock, maxsize)
+	    body, err = _receive_all(sock, maxsize)
 	    keepalive = false
-	    if not str then
-		sock:close()
-		return nil, err
-	    end
-	    body = str
 	end
+    end
+    
+    if not body then 
+	keepalive = false
     end
     
     if keepalive then
@@ -318,6 +308,10 @@ local function _receive(self, sock)
 	sock:setkeepalive()
     else
 	sock:close()
+    end
+    
+    if not body then
+	return nil, err
     end
     
     return { status = status, headers = headers, body = body }
