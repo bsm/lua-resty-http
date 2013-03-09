@@ -37,7 +37,8 @@ __DATA__
 	    local res, err = http.request("127.0.0.1", 1984, { path = "/foo" })
 	    ngx.say(err)
 	    ngx.say(res.body)  
-            ngx.say(res.status)          
+            ngx.say(res.status)
+	    ngx.say(res.headers["Content-Length"])       
         ';
     }
 --- request
@@ -47,6 +48,7 @@ nil
 foobar
 
 200
+7
 --- no_error_log
 [error]
 
@@ -67,7 +69,8 @@ foobar
 	    local res, err = http.request("127.0.0.1", 1984, { path = "/foo" })
 	    ngx.say(err)
 	    ngx.say(res.body)  
-            ngx.say(res.status)          
+            ngx.say(res.status)
+	    ngx.say(res.headers["Content-Length"])         
         ';
     }
 --- request
@@ -77,5 +80,6 @@ nil
 foobar
 
 200
+nil
 --- no_error_log
 [error]
