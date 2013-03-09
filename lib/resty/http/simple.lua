@@ -48,12 +48,8 @@ for _,key in ipairs(common_headers) do
     rawset(common_headers, lower(key), key)
 end
 
-local function header_case_fixups(table, key)
-    local val = rawget(table, key)
-    if val then
-	return val
-    end
-    val =  rawget(table, lower(key))
+function normalize_header(key)
+    local val = common_headers[key] or common_headers[lower(key)]
     if val then
 	return val
     end
@@ -61,12 +57,6 @@ local function header_case_fixups(table, key)
     key = gsub(key, "^%l", upper)
     key = gsub(key, "-%l", upper)
     return key
-end
-
-setmetatable(common_headers, { __index = header_case_fixups })
-
-function normalize_header(key)
-    return common_headers[key]
 end
 
 
