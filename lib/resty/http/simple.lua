@@ -122,7 +122,10 @@ local function _req_header(self, opts)
     if not headers['Accept'] then
 	headers['Accept'] = "*/*"
     end
-
+    if version == 0 and not headers['Connection'] then
+	headers['Connection'] = "Keep-Alive"
+    end
+    
     -- Append headers
     for key, values in pairs(headers) do
 	if type(values) ~= "table" then
@@ -264,6 +267,8 @@ local function _receive(self, sock)
     local length = tonumber(headers["Content-Length"])
     local body
 
+    local keepalive = true
+       
     if length then
 	if maxsize and length > maxsize then
 	    sock:close()
@@ -271,6 +276,7 @@ local function _receive(self, sock)
 	end
 	local str, err = _receive_length(sock, length)
 	if not str then
+	    sock:close()
 	    return nil, err
 	end
 	body = str
@@ -285,20 +291,35 @@ local function _receive(self, sock)
 	    body = str
 	else
 	    local str, err = _receive_all(sock, maxsize)
-	    headers["Connection"] = "close"
+	    keepalive = false
 	    if not str then
+		sock:close()
 		return nil, err
 	    end
 	    body = str
 	end
     end
-
-    if lower(headers["Connection"]) == "close" then
-	sock:close()
-    else
-	sock:setkeepalive()
+    
+    if keepalive then
+	local connection = headers["Connection"]
+	conenction = connection and lower(connection) or nil
+	if connection then
+	    if connection == "close" then
+		keepalive = false
+	    end
+	else
+	    if self.version == 0 then
+		keepalive = false
+	    end
+	end
     end
-
+    
+    if keepalive then
+	sock:setkeepalive()
+    else
+	sock:close()
+    end
+    
     return { status = status, headers = headers, body = body }
 end
 
