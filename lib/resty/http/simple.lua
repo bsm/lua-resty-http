@@ -328,13 +328,13 @@ function request(host, port, opts)
     if not sock then
 	return nil, err
     end
+
+    sock:settimeout(opts.timeout or 5000)
     
     local rc, err = sock:connect(host, port)
     if not rc then
 	return nil, err
     end
-    
-    sock:settimeout(opts.timeout or 5000)
     
     local version = opts.version
     if version then
