@@ -310,10 +310,6 @@ local function _receive(self, sock)
 	sock:close()
     end
     
-    if not body then
-	return nil, err
-    end
-    
     return { status = status, headers = headers, body = body }
 end
 
