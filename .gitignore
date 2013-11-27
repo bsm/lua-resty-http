@@ -1,1 +1,8 @@
-spec/resty/
+*.swp
+*.swo
+*~
+go
+t/servroot/
+reindex
+*.t_
+
